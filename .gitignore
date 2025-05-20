@@ -27,8 +27,8 @@ build/
 # 기타
 *.swp
 *.swo
-
 chroma_db/
+*.sqlite3
 
 # 추가 파일
 *.log
