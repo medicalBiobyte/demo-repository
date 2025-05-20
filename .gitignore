@@ -27,3 +27,10 @@ build/
 # 기타
 *.swp
 *.swo
+
+chroma_db/
+
+# 추가 파일
+*.log
+*.log.*
+*.log.*.*
