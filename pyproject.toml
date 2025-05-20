@@ -1,0 +1,80 @@
+[project]
+name = "agent-memory"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.10,<3.12"
+dependencies = [
+    "alembic>=1.12.1,<2.0.0",
+    "asyncpg>=0.30.0",
+    "boto3>=1.37.19",
+    "ddtrace>=3.2.1",
+    "fastapi[standard]>=0.115.11",
+    "langgraph-checkpoint>=2.0.21",
+    "langgraph-checkpoint-postgres>=2.0.18",
+    "langmem>=0.0.15",
+    "pgvector>=0.3.6",
+    "psycopg[binary]>=3.2.6",
+    "pydantic>=2.10.6",
+    "pydantic-settings>=2.8.1",
+    "sqlalchemy[asyncio]>=2.0.39",
+    "sqlmodel>=0.0.24",
+    "tenacity>=9.0.0",
+    "langgraph>=0.2.6",
+    "python-dotenv>=1.0.1",
+    "langchain_openai>=0.3.0",
+    "langchain-anthropic>=0.1.23",
+    "langchain>=0.2.14",
+    "langchain-fireworks>=0.1.7",
+    "langchain-community>=0.2.17",
+    "tavily-python>=0.4.0",
+    "langchain-postgres>=0.0.13",
+]
+
+[dependency-groups]
+dev = [
+    "coverage>=7.7.0",
+    "mypy>=1.15.0",
+    "pre-commit>=4.1.0",
+    "pytest>=8.3.5",
+    "ruff>=0.11.0",
+    "types-passlib>=1.7.7.20250318",
+]
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["graph_medi"]
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+exclude = ["venv", ".venv", "alembic"]
+
+[tool.ruff]
+target-version = "py312"
+exclude = ["alembic"]
+
+[tool.ruff.lint]
+select = [
+    "E", # pycodestyle errors
+    "W", # pycodestyle warnings
+    "F", # pyflakes
+    "I", # isort
+    "B", # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "ARG001", # unused arguments in functions
+]
+ignore = [
+    "E501", # line too long, handled by black
+    "B008", # do not perform function calls in argument defaults
+    "W191", # indentation contains tabs
+    "B904", # Allow raising exceptions without from e, for HTTPException
+]
+
+[tool.ruff.lint.pyupgrade]
+# Preserve types, even if a file imports `from __future__ import annotations`.
+keep-runtime-typing = true
