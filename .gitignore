@@ -29,8 +29,10 @@ build/
 *.swo
 chroma_db/
 *.sqlite3
-
+chroma.sqlite3
 # 추가 파일
 *.log
 *.log.*
 *.log.*.*
+csv_data/
+*.json
