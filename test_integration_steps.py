@@ -12,7 +12,7 @@ load_dotenv()
 # 실제 테스트할 이미지 파일 경로 
 TEST_IMAGE_DIR = "img"
 
-test_image_filename = "height_medi_1.png" # 👈 실제 테스트 이미지 파일명으로 변경!
+test_image_filename = "height_medi_1.png" 
 test_image_path = os.path.join(TEST_IMAGE_DIR, test_image_filename)
 
 # 예시 사용자 질문
@@ -59,7 +59,6 @@ def run_integration_tests():
         print(f"❌ 2단계 실패: 웹 정보를 보강하지 못했습니다. 메시지: {enriched_info.get('error', '알 수 없음')}")
         print_and_save_json(enriched_info, "step2_enriched_info_error.json")
         # 웹 정보 보강에 실패했더라도, 다음 단계를 위해 최소한의 정보는 유지할 수 있습니다.
-        # 여기서는 테스트이므로, 심각한 오류로 간주하고 중단하거나, 또는 경고 후 진행할 수 있습니다.
         # enriched_info = {"제품명": product_name_from_image, "확정_성분": [], "요약_텍스트": "웹 정보 조회 실패"} # 예시: 최소 정보
         return # 오류 시 중단
         

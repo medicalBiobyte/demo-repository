@@ -3,8 +3,8 @@ import json
 import re
 from PIL import Image
 from dotenv import load_dotenv
-from config import image_llm
-from prompt import IMG2TEXT_PROMPT
+from .config import image_llm # 앞에 . 을 추가합니다.
+from .prompt import IMG2TEXT_PROMPT # 앞에 . 을 추가합니다.
 
 # 🔐 환경변수 로드
 load_dotenv()
