@@ -34,5 +34,5 @@ chroma.sqlite3
 *.log
 *.log.*
 *.log.*.*
-csv_data/
+# csv_data/
 *.json
