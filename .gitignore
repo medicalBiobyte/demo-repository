@@ -13,6 +13,7 @@ node_modules/
 venv/
 __pycache__/
 *.pyc
+venv_py311/
 
 # 빌드 결과물
 dist/
@@ -36,3 +37,5 @@ chroma.sqlite3
 *.log.*.*
 csv_data/
 *.json
+
+
