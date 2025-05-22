@@ -40,7 +40,5 @@ get-pip.py
 *.log
 *.log.*
 *.log.*.*
-csv_data/
+# csv_data/
 *.json
-
-
