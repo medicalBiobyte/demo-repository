@@ -14,20 +14,40 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # 🔍 검색 → 요약 텍스트 추출
 def search_product_and_summarize(product_name: str) -> str:
-    search_result = web_search_llm.search(product_name + " 성분")  # or "성분 효능"
+    search_query = f"{product_name} 성분 효능"
+    print(f"🌐 '{search_query}'로 웹 검색 중...")
+    search_result = web_search_llm.search(search_query)
     results = search_result.get("results", [])
 
-    content = ""
+    processed_content_parts = []
+    if not results:
+        print(f"⚠️ '{product_name}'에 대한 웹 검색 결과가 없습니다.")
+        return ""
+    
     for res in results:
-        title = res.get("title", "")
-        snippet = res.get("content", "")
-        content += f"[{title}]\n{snippet}\n\n"
+        title = res.get("title", "제목 없음")
+        snippet = res.get("content", "내용 없음")
+        source_url = res.get("url")  # 웹 검색 결과에서 URL 추출
 
-    return content.strip()
+        # 각 결과를 "제목 - 내용 - 출처 URL" 형식으로 구성
+        part = f"[{title}]\n{snippet}"
+        if source_url:
+            part += f"\n출처: {source_url}"
+        else:
+            part += "\n출처: 정보 없음" # URL이 없는 경우를 대비
+        processed_content_parts.append(part)
+  
+    # 모든 검색 결과를 두 줄 바꿈으로 연결하여 하나의 텍스트로 만듭니다.
+    # 이는 WEB2INGREDIENT_PROMPT에서 "각 문단 말미: 해당 정보의 출처 URL" 형식을 따르도록 합니다.
+    return "\n\n".join(processed_content_parts).strip()
 
 
 # 🧠 LLM을 통해 성분 + 효능 추출
 def extract_ingredients_and_effects(summary_text: str) -> dict:
+    if not summary_text.strip(): # summary_text가 비어있거나 공백만 있는 경우
+        print("⚠️ 요약 텍스트가 비어 있어 성분 및 효능 추출을 건너뜁니다.")
+        return {}
+    
     full_prompt = WEB2INGREDIENT_PROMPT.replace("{web_text}", summary_text)
 
     response = text_llm.invoke(full_prompt)
@@ -44,8 +64,9 @@ def extract_ingredients_and_effects(summary_text: str) -> dict:
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
-        print("❌ JSON 파싱 실패\n", raw_text)
-        return {}
+        print(f"❌ JSON 파싱 실패. 원본 응답:\n---\n{raw_text}\n---")
+        # 파싱 실패 시, 추가적인 디버깅 정보나 빈 결과를 반환할 수 있습니다.
+        return {"error": "JSON 파싱 실패", "raw_response": raw_text}
     
 # --- 파이프라인을 위한 새로운 함수 ---
 def get_enriched_product_info(product_name: str) -> dict:
@@ -61,16 +82,31 @@ def get_enriched_product_info(product_name: str) -> dict:
 
     parsed_result = extract_ingredients_and_effects(web_summary)
 
-    if parsed_result: # 파싱 성공 시 (내용이 비어있을 순 있음)
-        parsed_result["제품명"] = product_name # 제품명 정보 추가
-        parsed_result["요약_텍스트"] = web_summary # 요약 텍스트도 결과에 포함 (answer_user_4.py에서 활용 가능)
-        print(f"✅ '{product_name}' 정보 보강 완료.")
-        return parsed_result
-    else: # LLM 파싱 실패 시
-        print(f"⚠️ '{product_name}' 정보 보강 실패 (LLM 파싱).")
-        # 다음 단계를 위해 최소한의 정보와 오류를 포함하여 반환
-        return {"제품명": product_name, "error": "LLM 파싱 실패", "요약_텍스트": web_summary, "확정_성분": []}
+    # LLM 결과에 제품명과 원본 요약 텍스트 추가
+    # parsed_result가 에러 객체일 수도 있으므로, 안전하게 업데이트
+    if isinstance(parsed_result, dict):
+        parsed_result["제품명"] = product_name
+        parsed_result["요약_텍스트"] = web_summary
+    else: # LLM 결과가 예상치 못한 형식일 경우 (예: 파싱 완전 실패로 문자열 반환 등)
+        parsed_result = {
+            "제품명": product_name,
+            "error": "LLM 결과 처리 실패",
+            "요약_텍스트": web_summary,
+            "llm_raw_output": parsed_result # 원본 LLM 출력을 저장
+        }
 
+
+    if "error" not in parsed_result:
+        print(f"✅ '{product_name}' 정보 보강 완료.")
+    else:
+        # 이미 parsed_result에 에러 정보가 있을 수 있음 (JSON 파싱 실패 등)
+        print(f"⚠️ '{product_name}' 정보 보강 중 문제 발생: {parsed_result.get('error', '알 수 없는 오류')}")
+        # 다음 단계를 위해 최소한의 정보와 오류를 포함하여 반환 (확정_성분은 없을 수 있으므로 기본값 제공)
+        if "확정_성분" not in parsed_result:
+             parsed_result["확정_성분"] = []
+
+
+    return parsed_result
 
 # 🚀 전체 파이프라인 실행
 # def process_all_products():
@@ -108,4 +144,13 @@ def get_enriched_product_info(product_name: str) -> dict:
 
 
 if __name__ == "__main__":
-    process_all_products()
+    # 테스트를 위해 단일 제품으로 실행 예시
+    test_product_name = "키즈픽션" # 여기에 테스트하고 싶은 제품명을 넣으세요.
+    enriched_info = get_enriched_product_info(test_product_name)
+    print("\n--- 최종 보강 정보 ---")
+    print(json.dumps(enriched_info, ensure_ascii=False, indent=2))
+    print("web_search_2.py 실행 (변경 사항 적용됨)")
+
+    # 기존의 process_all_products()를 사용하려면 아래 주석을 해제하세요.
+    # process_all_products()
+
