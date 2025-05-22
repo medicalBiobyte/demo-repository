@@ -1,8 +1,11 @@
-# rag_service_3_1.py
-
+import os
 import json
-from prompt import QUERY2KEYWORD_PROMPT
-from config import vector_store, text_llm
+from datetime import datetime
+from core.prompt import QUERY2KEYWORD_PROMPT
+from core.config import vector_store, text_llm
+
+SAVE_DIR = "RAG_RESULTS"
+os.makedirs(SAVE_DIR, exist_ok=True)
 
 
 def extract_keywords(query: str) -> list[str]:
@@ -17,53 +20,97 @@ def extract_keywords(query: str) -> list[str]:
         return []
 
 
-def run_rag(query: str, strategy: str = "mmr") -> dict:
+def run_rag_from_ingredients(
+    enriched_info: dict, user_query: str, strategy: str = "mmr", save: bool = True
+) -> dict:
     """
-    RAG 기반 검색 실행
-    - strategy: mmr, similarity, score_threshold 등 선택 가능
-    - 느슨한 MMR 설정 + efficacy/functionality 필터링
+    enriched_info["성분_효능"] 에 기반해 성분명별로 fnclty DB 검색 후 효능 일치 여부 평가
     """
-    keywords = extract_keywords(query)
-    combined_query = " ".join(keywords) or query
+    keywords = extract_keywords(user_query)
+    ingredients = enriched_info.get("성분_효능", [])
 
     retriever = vector_store.as_retriever(
         search_type=strategy,
         search_kwargs=(
             {
-                "k": 20,
-                "fetch_k": 40,
+                "k": 10,
+                "fetch_k": 20,
                 "lambda_mult": 0.1,
             }
             if strategy == "mmr"
-            else {"k": 20}
+            else {"k": 10}
         ),
     )
 
-    results = retriever.invoke(combined_query)
+    evaluation_results = []
+    for item in ingredients:
+        name = item.get("성분명", "")
+        if not name:
+            continue
 
-    # ✅ 핵심 기능성 필터링
-    def is_relevant(doc, keywords: list[str]) -> bool:
-        meta = doc.metadata
-        text = f"{meta.get('efficacy', '')} {meta.get('functionality', '')}".lower()
-        return any(kw.lower() in text for kw in keywords)
+        docs = retriever.invoke(name)
+        fnclty_docs = [doc for doc in docs if doc.metadata.get("source") == "fnclty"]
 
-    filtered_results = [doc for doc in results if is_relevant(doc, keywords)]
+        if not fnclty_docs:
+            evaluation_results.append(
+                {
+                    "성분명": name,
+                    "효능": "정보 없음",
+                    "일치도": "정보 없음",
+                    "출처": "fnclty",
+                }
+            )
+            continue
 
-    return {
-        "질문": query,
-        "추출_키워드": keywords,
-        "검색된_문서": [
+        best_doc = fnclty_docs[0]  # 가장 유사한 하나만 평가
+        meta = best_doc.metadata
+        efficacy_text = f"{meta.get('efficacy', '')} {meta.get('functionality', '')}".strip().lower()
+
+        if not efficacy_text:
+            match = "정보 없음"
+        elif any(kw.lower() in efficacy_text for kw in keywords):
+            match = "일치"
+        else:
+            match = "불일치"
+
+        evaluation_results.append(
             {
-                "내용": doc.page_content,
-                "메타데이터": doc.metadata,
+                "성분명": name,
+                "효능": efficacy_text if efficacy_text else "정보 없음",
+                "일치도": match,
+                "출처": "fnclty",
             }
-            for doc in filtered_results[:3]  # 최대 3개
-        ],
+        )
+
+    final_decision = (
+        "사용자 질문과 일부 성분의 효능이 일치합니다."
+        if any(e["일치도"] == "일치" for e in evaluation_results)
+        else "광고 주장의 근거가 부족합니다 (불일치)"
+    )
+
+    result = {
+        "질문": user_query,
+        "질문_키워드": keywords,
+        "성분_기반_평가": evaluation_results,
+        "최종_판단": final_decision,
     }
+
+    # if save:
+    #     safe_name = "_".join(keywords or ["query"]).replace(" ", "_")
+    #     filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_EVAL_{safe_name}.json"
+    #     filepath = os.path.join(SAVE_DIR, filename)
+    #     with open(filepath, "w", encoding="utf-8") as f:
+    #         json.dump(result, f, ensure_ascii=False, indent=2)
+    #     print(f"📁 평가 포함 RAG 결과 저장 완료 → {filepath}")
+
+    return result
 
 
 # 🧪 실행 예시
 if __name__ == "__main__":
-    test_query = "이 약 먹으면 키에 도움이 되나요?"
-    result = run_rag(test_query)
+    from core.web_search_2 import get_enriched_product_info
+
+    test_query = "이거 먹으면 키 크는데 효과 있나요?"
+    enriched_info = get_enriched_product_info("키즈픽션")
+    result = run_rag_from_ingredients(enriched_info, test_query)
     print(json.dumps(result, ensure_ascii=False, indent=2))
