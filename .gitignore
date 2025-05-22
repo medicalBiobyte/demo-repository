@@ -24,6 +24,7 @@ build/
 .env
 .env.local
 .env.*.local
+.env.*
 
 # 기타
 *.swp
@@ -31,6 +32,10 @@ build/
 chroma_db/
 *.sqlite3
 chroma.sqlite3
+*.save
+get-pip.py
+.python-version
+
 # 추가 파일
 *.log
 *.log.*
