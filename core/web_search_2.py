@@ -1,8 +1,9 @@
 import os
 import json
+
 # from dotenv import load_dotenv # main.py에서 처리
-from .prompt import WEB2INGREDIENT_PROMPT  # 아래에서 만들 프롬프트
-from .config import web_search_llm, text_llm  # TavilyClient, ChatOpenAI
+from core.prompt import WEB2INGREDIENT_PROMPT  # 아래에서 만들 프롬프트
+from core.config import web_search_llm, text_llm  # TavilyClient, ChatOpenAI
 from typing import List
 import re
 
@@ -23,7 +24,7 @@ def search_product_and_summarize(product_name: str) -> str:
     if not results:
         print(f"⚠️ '{product_name}'에 대한 웹 검색 결과가 없습니다.")
         return ""
-    
+
     for res in results:
         title = res.get("title", "제목 없음")
         snippet = res.get("content", "내용 없음")
@@ -34,9 +35,9 @@ def search_product_and_summarize(product_name: str) -> str:
         if source_url:
             part += f"\n출처: {source_url}"
         else:
-            part += "\n출처: 정보 없음" # URL이 없는 경우를 대비
+            part += "\n출처: 정보 없음"  # URL이 없는 경우를 대비
         processed_content_parts.append(part)
-  
+
     # 모든 검색 결과를 두 줄 바꿈으로 연결하여 하나의 텍스트로 만듭니다.
     # 이는 WEB2INGREDIENT_PROMPT에서 "각 문단 말미: 해당 정보의 출처 URL" 형식을 따르도록 합니다.
     return "\n\n".join(processed_content_parts).strip()
@@ -44,10 +45,10 @@ def search_product_and_summarize(product_name: str) -> str:
 
 # 🧠 LLM을 통해 성분 + 효능 추출
 def extract_ingredients_and_effects(summary_text: str) -> dict:
-    if not summary_text.strip(): # summary_text가 비어있거나 공백만 있는 경우
+    if not summary_text.strip():  # summary_text가 비어있거나 공백만 있는 경우
         print("⚠️ 요약 텍스트가 비어 있어 성분 및 효능 추출을 건너뜁니다.")
         return {}
-    
+
     full_prompt = WEB2INGREDIENT_PROMPT.replace("{web_text}", summary_text)
 
     response = text_llm.invoke(full_prompt)
@@ -67,7 +68,8 @@ def extract_ingredients_and_effects(summary_text: str) -> dict:
         print(f"❌ JSON 파싱 실패. 원본 응답:\n---\n{raw_text}\n---")
         # 파싱 실패 시, 추가적인 디버깅 정보나 빈 결과를 반환할 수 있습니다.
         return {"error": "JSON 파싱 실패", "raw_response": raw_text}
-    
+
+
 # --- 파이프라인을 위한 새로운 함수 ---
 def get_enriched_product_info(product_name: str) -> dict:
     if not product_name:
@@ -87,26 +89,27 @@ def get_enriched_product_info(product_name: str) -> dict:
     if isinstance(parsed_result, dict):
         parsed_result["제품명"] = product_name
         parsed_result["요약_텍스트"] = web_summary
-    else: # LLM 결과가 예상치 못한 형식일 경우 (예: 파싱 완전 실패로 문자열 반환 등)
+    else:  # LLM 결과가 예상치 못한 형식일 경우 (예: 파싱 완전 실패로 문자열 반환 등)
         parsed_result = {
             "제품명": product_name,
             "error": "LLM 결과 처리 실패",
             "요약_텍스트": web_summary,
-            "llm_raw_output": parsed_result # 원본 LLM 출력을 저장
+            "llm_raw_output": parsed_result,  # 원본 LLM 출력을 저장
         }
-
 
     if "error" not in parsed_result:
         print(f"✅ '{product_name}' 정보 보강 완료.")
     else:
         # 이미 parsed_result에 에러 정보가 있을 수 있음 (JSON 파싱 실패 등)
-        print(f"⚠️ '{product_name}' 정보 보강 중 문제 발생: {parsed_result.get('error', '알 수 없는 오류')}")
+        print(
+            f"⚠️ '{product_name}' 정보 보강 중 문제 발생: {parsed_result.get('error', '알 수 없는 오류')}"
+        )
         # 다음 단계를 위해 최소한의 정보와 오류를 포함하여 반환 (확정_성분은 없을 수 있으므로 기본값 제공)
         if "확정_성분" not in parsed_result:
-             parsed_result["확정_성분"] = []
-
+            parsed_result["확정_성분"] = []
 
     return parsed_result
+
 
 # 🚀 전체 파이프라인 실행
 # def process_all_products():
@@ -144,13 +147,16 @@ def get_enriched_product_info(product_name: str) -> dict:
 
 
 if __name__ == "__main__":
-    # 테스트를 위해 단일 제품으로 실행 예시
-    test_product_name = "키즈픽션" # 여기에 테스트하고 싶은 제품명을 넣으세요.
+    test_product_name = "키즈픽션"
     enriched_info = get_enriched_product_info(test_product_name)
-    print("\n--- 최종 보강 정보 ---")
-    print(json.dumps(enriched_info, ensure_ascii=False, indent=2))
-    print("web_search_2.py 실행 (변경 사항 적용됨)")
+
+    # ✅ 결과 저장 추가
+    if enriched_info:
+        safe_name = test_product_name.replace(" ", "_").replace("/", "_")
+        result_path = os.path.join(OUTPUT_DIR, f"enriched_{safe_name}.json")
+        with open(result_path, "w", encoding="utf-8") as f:
+            json.dump(enriched_info, f, ensure_ascii=False, indent=2)
+        print(f"✅ 결과 저장 완료: {result_path}")
 
     # 기존의 process_all_products()를 사용하려면 아래 주석을 해제하세요.
     # process_all_products()
-
