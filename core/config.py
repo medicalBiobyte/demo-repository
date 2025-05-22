@@ -27,7 +27,7 @@ web_search_llm = TavilyClient(api_key=TAVILY_API_KEY)
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small", dimensions=1536)
 
 vector_store = Chroma(
-    collection_name="my_docs",
+    collection_name="health_collection",
     embedding_function=embeddings,
     persist_directory="./chroma_db",
 )
