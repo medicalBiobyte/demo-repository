@@ -48,7 +48,6 @@ fonttools==4.58.0
 frozenlist==1.6.0
 fsspec==2025.3.2
 google==3.0.0
-google-ai-generativelanguage==0.6.18
 google-api-core==2.24.2
 google-api-python-client==2.169.0
 google-auth==2.40.1
@@ -83,7 +82,7 @@ jsonschema==4.23.0
 jsonschema-specifications==2025.4.1
 keyring==25.6.0
 kiwipiepy==0.20.0
-kiwipiepy_model==0.21.0
+kiwipiepy_model==0.20.0
 kiwisolver==1.4.8
 kubernetes==32.0.1
 langchain==0.3.25
@@ -119,7 +118,7 @@ mypy_extensions==1.1.0
 nest-asyncio==1.6.0
 networkx==3.4.2
 nltk==3.9.1
-numpy==1.26.4
+# numpy==1.26.4
 oauthlib==3.2.2
 olefile==0.47
 onnxruntime==1.22.0
