@@ -121,6 +121,6 @@ chroma_db/
 
 ## 💬 문의 및 기여
 
-- 작성자: 영환  
-- 사용 기술: Python, LangChain, Chroma, GPT-4o, Gemini, Tavily  
-- 기여 및 문의: 
+- 작성자: 영환, 경서, 솔  
+- 사용 기술: Python, LangChain, Chroma, GPT-4o, Gemini, Tavily 등
+- 기여 및 문의: 해당 Repository의 자유로운 Issue 작성 가능
