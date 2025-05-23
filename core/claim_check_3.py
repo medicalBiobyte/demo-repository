@@ -57,7 +57,7 @@ def match_efficacy(query_keywords: List[str], efficacy_text: str) -> str:
     return "일치" if matches else "불일치"
 
 # --- 파이프라인을 위한 수정된 함수 ---
-def get_product_evaluation(enriched_data: dict, user_query: str) -> dict:
+def get_product_evaluation(enriched_data: dict, user_query: str, original_user_query_for_display: str) -> dict: # 새 인자 추가
     product_name = enriched_data.get("제품명", "unknown").strip()
     # web_search_2.py의 get_enriched_product_info 반환값에서 "확정_성분" 키를 사용
     ingredients = enriched_data.get("확정_성분", [])
@@ -65,7 +65,8 @@ def get_product_evaluation(enriched_data: dict, user_query: str) -> dict:
     if not isinstance(ingredients, list): # ingredients가 리스트가 아닐 경우 처리
         print(f"⚠️ '{product_name}'의 확정_성분 형식이 잘못되었습니다: {ingredients}. 빈 리스트로 처리합니다.")
         ingredients = []
-
+    
+    # user_query는 내부 처리용 (정제된) 질문임
     query_keywords = extract_keywords_from_query(user_query)
 
     matched_results = []
@@ -109,21 +110,20 @@ def get_product_evaluation(enriched_data: dict, user_query: str) -> dict:
 
     evaluation_output = {
         "제품명": product_name,
-        "사용자_질문": user_query,
-        "질문_핵심_키워드": query_keywords,
-        "확정_성분": ingredients, # 입력으로 받은 확정_성분
+        "사용자_질문": original_user_query_for_display, # ❗ 여기에 원본 질문을 사용
+        "내부_처리_질문": user_query, # 디버깅/로깅용으로 내부 처리 질문도 포함 가능 (선택 사항)
+        "질문_핵심_키워드": query_keywords, # 정제된 질문으로부터 추출된 키워드
+        "확정_성분": ingredients,
         "매칭_성분": matched_results,
         "제품명_기반_보완": fallback_result,
         "최종_판단": final_judgement_text,
-        # 다음 단계(자연어 답변 생성)에서 풍부한 정보를 활용할 수 있도록 추가 데이터 포함
-        "original_효능_주장": enriched_data.get("original_효능_주장"), # 1단계의 이미지 추출 효능 주장
-        "web_요약": enriched_data.get("요약_텍스트"), # 2단계의 웹 검색 요약
-        "성분_추출_출처": enriched_data.get("성분_추출_출처"), # 2단계의 성분 출처
-        "성분_효능_웹": enriched_data.get("성분_효능") # 2단계의 웹 기반 성분 효능
+        "original_효능_주장": enriched_data.get("original_효능_주장"),
+        "web_요약": enriched_data.get("요약_텍스트"),
+        "성분_추출_출처": enriched_data.get("성분_추출_출처"),
+        "성분_효능_웹": enriched_data.get("성분_효능")
     }
 
-    print(f"✅ '{product_name}' 평가 완료: {final_judgement_text}")
-    # 파일 저장 로직은 main.py에서 필요시 수행
+    print(f"✅ '{product_name}' 평가 완료 (원본 질문: '{original_user_query_for_display}', 내부 처리 질문: '{user_query}'): {final_judgement_text}")
     return evaluation_output
 
 
