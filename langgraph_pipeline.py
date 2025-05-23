@@ -10,10 +10,10 @@ from core.prompt import INTENT_REFINEMENT_PROMPT, DATA_VALIDATION_PROMPT # 새�
 
 # 기존 core 모듈 임포트
 from core.text_extract_1 import extract_info_from_image, extract_json_string
-from core.web_search_2 import get_enriched_product_info
-from core.claim_check_3 import get_product_evaluation
-from core.rag_service_3_1 import run_rag_from_ingredients
-from core.answer_user_4 import generate_natural_response
+from core.web_search_3 import get_enriched_product_info
+from core.claim_check_4 import get_product_evaluation
+from core.rag_service_4_1 import run_rag_from_ingredients
+from core.answer_user_6 import generate_natural_response
 
 load_dotenv()
 
@@ -403,9 +403,9 @@ app = workflow.compile()
 
 if __name__ == "__main__":
     TEST_IMAGE_DIR = "img"
-    test_image_filename = "height_medi_2.png"
+    test_image_filename = "milk_thistle_1.jpeg"
     test_image_path = os.path.join(TEST_IMAGE_DIR, test_image_filename)
-    sample_user_query = "이거 먹으면 키 크는데 효과 있나요?"
+    sample_user_query = "이거 먹으면 혈압에 좋나요?"
 
     if not os.path.exists(TEST_IMAGE_DIR):
         print(f"🚨 오류: 이미지 디렉터리 '{TEST_IMAGE_DIR}'를 찾을 수 없습니다.")

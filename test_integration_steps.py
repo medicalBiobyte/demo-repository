@@ -2,9 +2,9 @@ import os
 import json
 from dotenv import load_dotenv
 from core.text_extract_1 import extract_info_from_image 
-from core.web_search_2 import get_enriched_product_info
-from core.claim_check_3 import get_product_evaluation
-from core.answer_user_4 import generate_natural_response
+from core.web_search_3 import get_enriched_product_info
+from core.claim_check_4 import get_product_evaluation
+from core.answer_user_6 import generate_natural_response
 
 load_dotenv()
 
