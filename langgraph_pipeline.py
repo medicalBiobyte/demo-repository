@@ -207,9 +207,9 @@ if __name__ == "__main__":
         print("디렉토리를 생성하고 테스트 이미지를 넣어주세요.")
     elif not os.path.exists(test_image_path):
         print(f"🚨 오류: 테스트 이미지 '{test_image_path}'를 찾을 수 없습니다.")
-        print(f"'{TEST_IMAGE_DIR}' 포르다에 '{test_image_filename}' 파일을 넣어주세요.")
+        print(f"'{TEST_IMAGE_DIR}' 폴더에 '{test_image_filename}' 파일을 넣어주세요.")
     else:
-        print("🚀 LangGraph 기반 통합 파이티와인 시작 🚀")
+        print("🚀 LangGraph 기반 통합 파이프라인 시작 🚀")
 
         initial_state = {"image_path": test_image_path, "user_query": sample_user_query}
         final_state = app.invoke(initial_state)
@@ -219,13 +219,13 @@ if __name__ == "__main__":
         print("-" * 50)
 
         if final_state.get("error_message"):
-            print(f"\n🚫 파이티와인 중 오류 발생: {final_state['error_message']}")
+            print(f"\n🚫 파이프라인 중 오류 발생: {final_state['error_message']}")
             print(f"오류 발생 단계: {final_state.get('current_step', '알 수 없음')}")
         elif final_state.get("final_response"):
-            print("\n🎉 파이티와인 성공적으로 완료! 🎉")
+            print("\n🎉 파이프라인 성공적으로 완료! 🎉")
             print("\n---  최종 생성된 자연어 답변 ---")
             print(final_state["final_response"])
         else:
             print(
-                "\n🤔 파이티와인은 완료되었지만, 최종 답변이 없거나 알 수 없는 문제가 발생했습니다."
+                "\n🤔 파이프라인은 완료되었지만, 최종 답변이 없거나 알 수 없는 문제가 발생했습니다."
             )
