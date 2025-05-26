@@ -8,7 +8,7 @@ from core.state_types import GraphState
 from core.utils import extract_json_string, save_step_output
 
 # 기존 core 모듈 임포트
-from core.text_extract_1 import extract_info_from_image, extract_json_string
+from core.text_extract_1 import extract_info_from_image
 from core.intent_refiner_agent_2 import node_refine_user_intent
 from core.web_search_3 import get_enriched_product_info
 from core.claim_check_4 import get_product_evaluation
