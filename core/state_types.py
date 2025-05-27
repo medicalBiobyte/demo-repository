@@ -3,6 +3,7 @@ from typing import TypedDict, Dict, Any, Optional, List
 class GraphState(TypedDict):
     image_path: str
     user_query: str
+    run_id: Optional[str] # 각 실행을 식별하는 ID 추가
     image_data: Optional[Dict[str, Any]]
     product_name_from_image: Optional[str]
     enriched_info: Optional[Dict[str, Any]]
