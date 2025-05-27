@@ -12,7 +12,7 @@ from typing import List, Dict, Any, Optional
 from core.text_extract_1 import process_all_images
 from core.web_search_3 import process_all_products
 from core.claim_check_4 import evaluate_product
-from core.answer_user_6 import generate_natural_response
+from core.answer_user_5 import generate_natural_response
 
 # 디렉터리 상수 정의
 IMG_DIR = "img"

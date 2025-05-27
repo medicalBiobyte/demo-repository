@@ -13,8 +13,7 @@ from core.intent_refiner_agent_2 import node_refine_user_intent
 from core.web_search_3 import get_enriched_product_info
 from core.claim_check_4 import get_product_evaluation
 from core.rag_service_4_1 import run_rag_from_ingredients
-from core.data_validator_agent_5 import node_validate_data_consistency
-from core.answer_user_6 import generate_natural_response
+from core.answer_user_5 import generate_natural_response
 
 load_dotenv()
 
@@ -178,8 +177,6 @@ workflow.add_node("extract_image_info", node_extract_image_info)
 workflow.add_node("refine_user_intent", node_refine_user_intent)
 workflow.add_node("enrich_product_info", node_enrich_product_info)
 workflow.add_node("evaluate_product", node_evaluate_product)
-# 🆕 데이터 검증 에이전트 노드 추가
-workflow.add_node("validate_data_consistency", node_validate_data_consistency)
 workflow.add_node("generate_response", node_generate_natural_response)
 
 workflow.set_entry_point("extract_image_info")
@@ -187,17 +184,16 @@ workflow.set_entry_point("extract_image_info")
 workflow.add_edge("extract_image_info", "refine_user_intent")
 workflow.add_edge("refine_user_intent", "enrich_product_info")
 workflow.add_edge("enrich_product_info", "evaluate_product")
-workflow.add_edge("evaluate_product", "validate_data_consistency") # 제품 평가 후 데이터 검증
-workflow.add_edge("validate_data_consistency", "generate_response") # 검증 후 최종 답변 생성
+workflow.add_edge("evaluate_product", "generate_response")
 workflow.add_edge("generate_response", END)
 app = workflow.compile()
 
 
 if __name__ == "__main__":
     TEST_IMAGE_DIR = "img"
-    test_image_filename = "milk_thistle_1.jpeg"
+    test_image_filename = "propolis_1.png"
     test_image_path = os.path.join(TEST_IMAGE_DIR, test_image_filename)
-    sample_user_query = "이거 먹으면 혈압에 좋나요?"
+    sample_user_query = "입에 뭐 났는데 이거 먹으면 효과 있나요?"
 
     if not os.path.exists(TEST_IMAGE_DIR):
         print(f"🚨 오류: 이미지 디렉터리 '{TEST_IMAGE_DIR}'를 찾을 수 없습니다.")

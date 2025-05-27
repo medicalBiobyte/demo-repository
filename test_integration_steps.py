@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from core.text_extract_1 import extract_info_from_image 
 from core.web_search_3 import get_enriched_product_info
 from core.claim_check_4 import get_product_evaluation
-from core.answer_user_6 import generate_natural_response
+from core.answer_user_5 import generate_natural_response
 
 load_dotenv()
 
