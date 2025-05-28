@@ -145,21 +145,21 @@ if keyword_results:
 font_path = '/Library/Fonts/AppleGothic.ttf'
 
 # 1) 카테고리별 데이터 수 막대그래프
-plt.figure(figsize=(10,6), dpi=100)
+plt.figure(figsize=(12,7), dpi=100)
 category_counts = df['category'].value_counts()
 bar_plot = category_counts.plot(kind='bar',
-                                color='cornflowerblue', 
-                                width=0.7) 
-plt.title('카테고리별 데이터 수', fontsize=16, fontweight='bold')
-plt.xlabel('카테고리', fontsize=12)
-plt.ylabel('갯수', fontsize=12)
+                                color='lightskyblue', 
+                                width=0.9) 
+plt.title('카테고리별 데이터 수', fontsize=18, fontweight='bold')
+plt.xlabel('카테고리', fontsize=14,fontweight='bold')
+plt.ylabel('갯수', fontsize=14,fontweight='bold')
 plt.tight_layout()
-plt.xticks(rotation=45, ha='right', fontsize=10)
+plt.xticks(rotation=0, ha='center', fontsize=11)
 plt.yticks(fontsize=10) 
 plt.grid(axis='y', linestyle='--', alpha=0.7) 
 plt.tight_layout()
 for i, v in enumerate(df['category'].value_counts()):
-    plt.text(i, v + 0.5, str(v), ha='center', va='bottom')
+    plt.text(i, v + 0.2, str(v), ha='center', va='bottom')
 plt.show()
 
 # 2) 카테고리별 상위 키워드 추출
@@ -188,12 +188,12 @@ wc_all = WordCloud(
     font_path=font_path,
     width=800, height=600,
     background_color='white',
-    max_font_size=180, colormap='viridis', random_state=42, prefer_horizontal=0.95
+    max_font_size=180, colormap='PuBuGn', random_state=42, prefer_horizontal=0.95
 ).generate_from_frequencies(overall_freq)
 
 plt.figure(figsize=(12,9), dpi=100)
 plt.imshow(wc_all, interpolation='bilinear')
-plt.title('전체 카테고리 워드클라우드', fontsize=18, fontweight='bold')
+plt.title('워드클라우드', fontsize=16, fontweight='bold')
 plt.axis('off')
 plt.tight_layout()
 plt.show()
