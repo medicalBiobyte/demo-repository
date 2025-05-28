@@ -3,13 +3,18 @@ import json
 from datetime import datetime
 from core.prompt import QUERY2KEYWORD_PROMPT
 from core.config import vector_store, text_llm
+from langchain.schema import Document  # 반드시 포함
+import cohere
 
 SAVE_DIR = "RAG_RESULTS"
 os.makedirs(SAVE_DIR, exist_ok=True)
+# 🧠 Cohere Reranker 설정
+COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+cohere_client = cohere.Client(COHERE_API_KEY)
 
 
+# 🔍 사용자 질문에서 키워드 추출
 def extract_keywords(query: str) -> list[str]:
-    """사용자 질문에서 핵심 키워드 추출"""
     prompt = QUERY2KEYWORD_PROMPT.replace("{query}", query)
     response = text_llm.invoke(prompt)
     try:
@@ -20,163 +25,166 @@ def extract_keywords(query: str) -> list[str]:
         return []
 
 
+def decide_final_judgment(user_query: str, evaluation_results: list[dict]) -> str:
+    formatted_result = "\n".join(
+        [
+            f"- 성분: {item['성분명']}\n  효능 요약: {item['효능']}\n  사용자 질문과 일치도: {item['일치도']}"
+            for item in evaluation_results
+        ]
+    )
+    prompt = f"""다음은 사용자의 건강 기능식품 관련 질문과 그에 대한 성분별 검색 결과입니다.
+
+질문: "{user_query}"
+
+성분별 평가 결과:
+{formatted_result}
+
+이 정보를 바탕으로, 이 제품의 광고 주장이 과학적으로 충분히 뒷받침되는지 종합적으로 판단해 주세요.
+결론은 한 문장으로 간결하게 한국어로 작성해 주세요.
+
+최종 판단:"""
+
+    try:
+        decision_response = text_llm.invoke(prompt)
+        return decision_response.content.strip()
+    except Exception as e:
+        print(f"❌ LLM 판단 오류: {e}")
+        return "판단 실패: 오류 발생"
+
+
+def cohere_rerank(query: str, docs: list[Document], top_n: int = 5) -> list[Document]:
+    contents = [doc.page_content for doc in docs]
+    response = cohere_client.rerank(
+        query=query, documents=contents, top_n=top_n, model="rerank-multilingual-v3.0"
+    )
+    reranked = [docs[result.index] for result in response.results]
+    return reranked
+
+
 def run_rag_from_ingredients(
     enriched_info: dict, user_query: str, strategy: str = "mmr", save: bool = True
 ) -> dict:
-    """
-    enriched_info["성분_효능"] 에 기반해 성분명별로 fnclty DB 검색 후 효능 일치 여부 평가
-    """
     keywords = extract_keywords(user_query)
-    # enriched_info의 "성분_효능"은 [{ "성분명": "A", "효능": "웹검색효능1"}, ...] 형태일 것으로 예상
-    ingredients_from_enriched_info = enriched_info.get("성분_효능", [])
+    ingredients = enriched_info.get("성분_효능", [])
 
     retriever = vector_store.as_retriever(
         search_type=strategy,
         search_kwargs=(
-            {
-                # MMR 경우, k는 최종 반환 문서 수, fetch_k는 초기 검색 문서 수
-                "k": 5,  # LLM에 전달할 최종 문서 수를 줄여서 컨텍스트 길이 관리 (예: 3~5개)
-                "fetch_k": 20,
-                "lambda_mult": 0.7,  # 다양성 증진 (0.0 ~ 1.0, 높을수록 다양성)
-            }
+            {"k": 10, "fetch_k": 20, "lambda_mult": 0.7}
             if strategy == "mmr"
-            else {"k": 5}  # 유사도 검색 시에도 반환 문서 수 조절
+            else {"k": 10}
         ),
     )
 
     evaluation_results = []
-    for item in ingredients_from_enriched_info:
-        ingredient_name_from_web = item.get("성분명", "")  # 웹 검색에서 온 성분명
-        # web_efficacy = item.get("효능", "") # 웹 검색에서 온 효능 (참고용)
+    seen_ingredients = set()  # ✅ 중복 방지용 집합
 
-        if not ingredient_name_from_web:
+    for item in ingredients:
+        ingredient_name = item.get("성분명", "")
+        if not ingredient_name or ingredient_name in seen_ingredients:
+            continue
+        seen_ingredients.add(ingredient_name)
+
+        print(f"🧬 RAG 검색 중 (성분: {ingredient_name})")
+        retrieved_docs = retriever.invoke(ingredient_name)
+
+        if not retrieved_docs:
+            evaluation_results.append(
+                {
+                    "성분명": ingredient_name,
+                    "효능": "정보 없음",
+                    "일치도": "정보 없음",
+                    "출처": ["문서 없음"],
+                }
+            )
             continue
 
-        # RAG 검색 시 성분명만 사용
-        rag_query_text = ingredient_name_from_web
-        print(
-            f"🧬 RAG 검색 중 (사용자 질문 키워드: '{keywords}', 검색 성분명: '{ingredient_name_from_web}')"
+        # 🔍 Rerank 전 출력
+        print(f"🔎 [BEFORE RERANK] {ingredient_name} 관련 원본 문서:")
+        for i, doc in enumerate(retrieved_docs[:5]):
+            preview = doc.page_content[:100].replace("\n", " ")
+            print(f"  [{i+1}] {preview}...")
+
+        # 💡 Cohere Rerank 적용
+        reranked_docs = cohere_rerank(
+            query=ingredient_name,
+            docs=retrieved_docs,
+            top_n=5,
         )
 
-        ##
-        retrieved_docs = retriever.invoke(rag_query_text)
+        # 🏆 Rerank 후 출력
+        print(f"🏆 [AFTER RERANK] {ingredient_name} 관련 상위 문서:")
+        for i, doc in enumerate(reranked_docs):
+            preview = doc.page_content[:100].replace("\n", " ")
+            print(f"  [{i+1}] {preview}...")
 
-        extracted_efficacy_from_rag = "정보 없음"
-        rag_source_info = "정보 없음"  # RAG 문서 출처 초기화
-
-        if retrieved_docs:
-            print(
-                f"📄 '{ingredient_name_from_web}'에 대해 {len(retrieved_docs)}개의 RAG 문서 찾음."
+        # 📦 출처 수집
+        sources = []
+        for doc in reranked_docs:
+            source = doc.metadata.get("source", "출처 없음")
+            identity = (
+                doc.metadata.get("material")
+                or doc.metadata.get("product_name")
+                or doc.metadata.get("product")
+                or "N/A"
             )
-            # 찾은 문서들의 page_content를 LLM에 전달할 컨텍스트로 구성
-            # 너무 많은 문서를 한 번에 전달하면 LLM의 컨텍스트 길이 제한에 걸릴 수 있으므로, 상위 몇 개만 사용 (retriever의 k로 조절됨)
-            context_for_llm = "\n\n---\n\n".join(
-                [
-                    f"문서 출처: {doc.metadata.get('source', '알 수 없음')}\n문서 내용: {doc.page_content}"
-                    for doc in retrieved_docs
-                ]
+            sources.append(f"{source} / {identity}")
+
+        context = "\n\n---\n\n".join(
+            [
+                f"[출처: {sources[i]}]\n{doc.page_content}"
+                for i, doc in enumerate(reranked_docs)
+            ]
+        )
+
+        prompt = f"""다음은 '{ingredient_name}' 성분과 관련된 문서들입니다.
+이 문서들의 내용을 바탕으로, 주요 효능을 한글로 간결히 요약하세요.
+
+[문서 시작]
+{context}
+[문서 끝]
+
+효능 요약:"""
+
+        try:
+            llm_response = text_llm.invoke(prompt)
+            efficacy = llm_response.content.strip() or "정보 없음"
+            match_status = (
+                "일치"
+                if any(kw in efficacy for kw in keywords)
+                else "불일치 또는 직접 관련 없음"
             )
-
-            # LLM에게 효능 정보 추출/요약 요청
-            # 프롬프트는 필요에 따라 더 정교하게 수정 가능
-            prompt_for_rag_efficacy_extraction = f"""다음은 '{ingredient_name_from_web}' 성분과 관련된 문서들입니다.
-이 문서들의 내용을 바탕으로, '{ingredient_name_from_web}' 성분의 주요 효능 또는 기능성 내용을 한글로 간결하게 요약해 주십시오.
-효능/기능성 내용이 여러가지일 경우, 가장 중요하거나 대표적인 것을 중심으로 언급하거나, 간략히 나열할 수 있습니다.
-문서에서 관련 정보를 명확히 찾을 수 없다면 '정보 없음'이라고 답변해 주십시오.
-
-[관련 문서 시작]
-{context_for_llm}
-[관련 문서 끝]
-
-'{ingredient_name_from_web}'의 주요 효능/기능성 내용 요약:"""
-
-            try:
-                llm_response = text_llm.invoke(prompt_for_rag_efficacy_extraction)
-                extracted_efficacy_from_rag = llm_response.content.strip()
-                if (
-                    not extracted_efficacy_from_rag
-                    or extracted_efficacy_from_rag.lower() == "정보 없음"
-                ):
-                    extracted_efficacy_from_rag = "정보 없음"  # 일관된 표현 사용
-                print(
-                    f"💡 LLM 추출 효능 ('{ingredient_name_from_web}'): {extracted_efficacy_from_rag}"
-                )
-
-                # 출처 정보 (예: 가장 관련도 높은 문서의 출처 또는 여러 출처 요약)
-                # 여기서는 간단히 첫 번째 문서의 출처를 사용하거나, "다수 출처" 등으로 표기 가능
-                if retrieved_docs[0].metadata.get("source"):
-                    rag_source_info = retrieved_docs[0].metadata.get("source")
-                else:
-                    rag_source_info = "출처 정보 없음"
-
-            except Exception as e:
-                print(f"❌ LLM으로 RAG 효능 추출 중 오류: {e}")
-                extracted_efficacy_from_rag = "정보 없음 (추출 오류)"
-                rag_source_info = "오류로 출처 확인 불가"
-        else:
-            print(f"ℹ️ '{ingredient_name_from_web}'에 대한 RAG 문서 없음.")
-            # 문서가 아예 없으면 출처도 '정보 없음'으로 유지
-
-        # 사용자 질문의 키워드와 RAG에서 추출된 효능 간의 일치도 판단
-        match_status = "정보 없음"  # 기본값
-        if extracted_efficacy_from_rag not in ["정보 없음", "정보 없음 (추출 오류)"]:
-            # 키워드 매칭: 추출된 효능 텍스트 내에 사용자 질문 키워드가 있는지 확인
-            if keywords and any(
-                kw.lower() in extracted_efficacy_from_rag.lower() for kw in keywords
-            ):
-                match_status = "일치"
-            else:
-                # 키워드가 없거나, 효능은 있지만 키워드와 직접적 일치하지 않는 경우
-                match_status = "불일치 또는 직접 관련 없음"
+        except Exception as e:
+            print(f"❌ LLM 오류: {e}")
+            efficacy = "정보 없음"
+            match_status = "정보 없음"
 
         evaluation_results.append(
             {
-                "성분명": ingredient_name_from_web,
-                "효능": extracted_efficacy_from_rag,  # LLM이 추출/요약한 효능
+                "성분명": ingredient_name,
+                "효능": efficacy,
                 "일치도": match_status,
-                "출처": rag_source_info,  # RAG 문서에서 가져온 출처
+                "출처": sources[:3],
+                "원본문서": [doc.page_content for doc in retrieved_docs[:5]],
+                "재정렬문서": [doc.page_content for doc in reranked_docs],
             }
         )
 
-    # 최종 판단 로직 (기존과 유사하게 유지 또는 개선 가능)
-    if any(e["일치도"] == "일치" for e in evaluation_results):
-        final_decision = (
-            "사용자 질문과 RAG 정보 기반으로 일부 성분의 효능이 일치합니다."
-        )
-    elif any(
-        e["효능"] not in ["정보 없음", "정보 없음 (추출 오류)"]
-        for e in evaluation_results
-    ):  # 효능 정보는 있으나 질문과 불일치
-        final_decision = "RAG 정보에 따르면, 일부 성분의 효능이 사용자 질문과 직접적으로 일치하지 않습니다."
-    else:  # RAG에서도 관련 효능 정보를 전혀 찾지 못한 경우
-        final_decision = "RAG 정보에서도 광고 주장을 뒷받침할 근거를 찾기 어렵습니다."
+    final_decision = decide_final_judgment(user_query, evaluation_results)
 
     result = {
-        "질문": user_query,  # 원본 사용자 질문 또는 정제된 질문 (context에 따라 결정)
+        "질문": user_query,
         "질문_키워드": keywords,
         "성분_기반_평가": evaluation_results,
         "최종_판단": final_decision,
     }
 
     if save:
-        # 파일명에 사용할 안전한 문자열 생성 (키워드가 없을 경우 "rag_query" 사용)
-        safe_name_parts = (
-            [kw.replace(" ", "_") for kw in keywords if kw]
-            if keywords
-            else ["rag_query"]
-        )
-        safe_name = "_".join(safe_name_parts)
-
-        filename = (
-            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_RAG_EVAL_{safe_name}.json"
-        )
+        filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_RAG_RERANK_RESULT.json"
         filepath = os.path.join(SAVE_DIR, filename)
-        try:
-            with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(result, f, ensure_ascii=False, indent=2)
-            print(f"📁 RAG 평가 결과 저장 완료 → {filepath}")
-        except Exception as e:
-            print(f"❌ RAG 평가 결과 저장 실패: {e}")
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+        print(f"📁 결과 저장 완료: {filepath}")
 
     return result
 
@@ -188,32 +196,22 @@ if __name__ == "__main__":
     print("🧪 RAG 서비스 직접 테스트 시작 🧪")
     print("=" * 50)
 
-    # --- 시나리오 1: "밀크씨슬(실리마린)" 성분에 대한 직접 테스트 ---
     print("\n[테스트 시나리오 1: '밀크씨슬(실리마린)' 성분으로 RAG 검색]")
 
-    # "밀크씨슬" 관련 사용자 질문 예시
     test_user_query_for_milk_thistle = (
         "밀크씨슬이 간 건강에 어떤 효과가 있나요? 광고처럼 정말 좋은가요?"
     )
 
-    # "밀크씨슬(실리마린)"을 포함하는 `enriched_info` 구조를 직접 구성합니다.
-    # 이 구조는 `get_enriched_product_info` 함수의 일반적인 반환 형태와 유사하게 만듭니다.
     mock_enriched_info_milk_thistle = {
-        "제품명": "가상 밀크씨슬 제품",  # 테스트용 가상 제품명
-        "성분_효능": [  # run_rag_from_ingredients 함수가 이 리스트를 사용합니다.
+        "제품명": "가상 밀크씨슬 제품",
+        "성분_효능": [
             {
-                "성분명": "밀크씨슬(실리마린)",  # RAG에서 검색을 시작할 성분명
-                "효능": "간 건강 개선 (웹 정보 가정)",  # 이 부분은 웹 검색 결과라고 가정 (참고용)
+                "성분명": "밀크씨슬(실리마린)",
+                "효능": "간 건강 개선 (웹 정보 가정)",
                 "출처": "가상 웹사이트",
             },
-            # 필요하다면 테스트를 위해 다른 가상 성분을 추가할 수 있습니다.
-            # {
-            #     "성분명": "코엔자임 Q10",
-            #     "효능": "항산화 작용 (웹 정보 가정)",
-            #     "출처": "가상 웹사이트"
-            # }
         ],
-        "확정_성분": ["밀크씨슬(실리마린)"],  # 기타 필요한 필드들
+        "확정_성분": ["밀크씨슬(실리마린)"],
         "요약": "이것은 '밀크씨슬(실리마린)' 성분의 RAG 검색을 테스트하기 위한 가상 제품 정보입니다.",
     }
 
@@ -222,14 +220,12 @@ if __name__ == "__main__":
         f"입력 enriched_info의 성분: {[item['성분명'] for item in mock_enriched_info_milk_thistle.get('성분_효능', [])]}"
     )
 
-    # run_rag_from_ingredients 함수 호출 (수정된 버전 사용)
     rag_result_milk_thistle = run_rag_from_ingredients(
         enriched_info=mock_enriched_info_milk_thistle,
         user_query=test_user_query_for_milk_thistle,
-        save=False,  # 테스트 중에는 파일 저장을 꺼도 됩니다.
+        save=False,
     )
 
     print("\n--- RAG 결과 (밀크씨슬 시나리오) ---")
-    # JSON 출력을 위해 json 모듈이 임포트 되어 있어야 합니다. (파일 상단에 import json)
     print(json.dumps(rag_result_milk_thistle, ensure_ascii=False, indent=2))
     print("-" * 50)
