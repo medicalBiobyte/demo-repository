@@ -5,6 +5,7 @@ import pandas as pd
 from .config import text_llm
 from .prompt import QUERY2KEYWORD_PROMPT
 from typing import List, Tuple
+from rapidfuzz import fuzz   # pip install rapidfuzz
 
 # 📁 경로 설정
 
@@ -80,11 +81,26 @@ def extract_keywords_from_query(query: str) -> List[str]:
         return []
 
 
-# ✅ 키워드와 효능 텍스트 매칭
-def match_efficacy(query_keywords: List[str], efficacy_text: str) -> str:
-    text_lower = efficacy_text.lower()
-    matches = [kw.lower() for kw in query_keywords if kw.lower() in text_lower]
-    return "일치" if matches else "불일치"
+def _normalize(text: str) -> str:
+    """
+    소문자 변환 + 공백·중점(·)·특수기호 제거
+    """
+    text = text.lower()
+    text = re.sub(r"[\s·\.\,!?;:()\[\]{}]", "", text)
+    return text
+
+def match_efficacy(query_keywords: list[str],
+                   efficacy_text: str,
+                   threshold: int = 70) -> str:
+
+    eff_norm = _normalize(efficacy_text)
+
+    for kw in query_keywords:
+        kw_norm = _normalize(kw)
+        if fuzz.partial_ratio(kw_norm, eff_norm) >= threshold:
+            return "일치"
+
+    return "불일치"
 
 # --- 파이프라인을 위한 수정된 함수 ---
 def get_product_evaluation(enriched_data: dict, user_query: str, original_user_query_for_display: str) -> dict: # 새 인자 추가
