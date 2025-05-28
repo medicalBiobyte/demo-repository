@@ -8,6 +8,7 @@ from core.state_types import GraphState
 from core.utils import extract_json_string, save_step_output, save_run_metadata
 import uuid  # run_id 생성을 위해 추가
 from datetime import datetime  # 타임스탬프를 위해 추가
+import shutil # 파일 복사를 위해 추가
 
 # 기존 core 모듈 임포트
 from core.text_extract_1 import extract_info_from_image
@@ -21,106 +22,137 @@ load_dotenv()
 
 
 def node_extract_image_info(state: GraphState) -> Dict[str, Any]:
-    run_id = state.get("run_id")  # ◀️ run_id 가져오기
+    run_id = state.get("run_id")
     current_step_name = "extract_image_info"
-    # state["current_step"] = current_step_name # current_step은 마지막 상태에 자동으로 기록될 수 있도록 GraphState에 유지
-    print(f"--- 🏃 [{run_id}] 단계 실행: {current_step_name} ---")  # 로그에 run_id 추가
+    # current_step은 반환값에 포함시켜 GraphState가 최종적으로 알 수 있도록 합니다.
+    
+    print(f"--- 🏃 [{run_id}] 단계 실행: {current_step_name} ---")
 
-    image_path = state["image_path"]
-    step_inputs_for_saving = {"image_path": image_path}  # 이 단계의 입력 정의
+    original_image_path = state["image_path"]
+    step_inputs_for_saving = {"original_image_path": original_image_path}
 
-    if not os.path.exists(image_path):
-        error_msg = f"이미지 파일을 찾을 수 없습니다: {image_path}"
-        print(f"❌ 오류: {error_msg}")
-        return {"error_message": error_msg}
-
-    image_data_output = extract_info_from_image(image_path)
-
-    if (
-        not image_data_output
-        or "제품명" not in image_data_output
-        or not image_data_output.get("제품명")
-    ):
-        error_msg = "이미지에서 유효한 정보를 추출하지 못했습니다."
-        print(f"❌ {state['current_step']} 오류: {error_msg}")
-        if image_data_output:
-            print(json.dumps(image_data_output, indent=2, ensure_ascii=False))
-        return {"image_data": image_data_output, "error_message": error_msg}
-
-    product_name = image_data_output.get("제품명", "").split("/")[0].strip()
-    if not product_name:
-        error_msg = "추출된 제품명이 유효하지 않습니다."
-        print(f"❌ {state['current_step']} 오류: {error_msg}")
-        return {"image_data": image_data_output, "error_message": error_msg}
-
-    print(f"✅ {state['current_step']} 성공. 제품명: {product_name}")
-
-    # 반환할 결과 (상태 업데이트용)
-    node_return_output: Dict[str, Any]
+    # 초기화
+    node_return_output: Dict[str, Any] = {}
     status_for_saving = "success"
     error_for_saving = None
+    archived_image_path_for_state: Optional[str] = None # 아카이브된 이미지 경로
 
-    if not os.path.exists(image_path):
-        error_msg = f"이미지 파일을 찾을 수 없습니다: {image_path}"
-        print(f"❌ [{run_id}] 오류: {error_msg}")
-        node_return_output = {
-            "error_message": error_msg,
-            "current_step": current_step_name,
-        }
-        status_for_saving = "failure"
-        error_for_saving = error_msg
-    else:
-        image_data_output = extract_info_from_image(image_path)
+    try:
+        # 1. 원본 이미지 존재 여부 확인
+        if not os.path.exists(original_image_path):
+            raise FileNotFoundError(f"이미지 파일을 찾을 수 없습니다: {original_image_path}")
+
+        # 2. 사용자 이미지 아카이빙
+        #    run_id가 있어야 아카이빙 의미가 있음
+        if run_id:
+            try:
+                archive_base_dir = "STEP_OUTPUTS" # utils.py의 STEP_OUTPUTS_DIR와 일치
+                archive_dir = os.path.join(archive_base_dir, run_id, "uploaded_image")
+                os.makedirs(archive_dir, exist_ok=True)
+                
+                original_filename = os.path.basename(original_image_path)
+                archived_image_path_for_state = os.path.join(archive_dir, original_filename)
+                
+                shutil.copy2(original_image_path, archived_image_path_for_state)
+                print(f"🖼️ [{run_id}] 사용자 이미지 아카이브 완료: {archived_image_path_for_state}")
+            except Exception as e_archive:
+                archive_error_msg = f"사용자 이미지 아카이빙 실패: {type(e_archive).__name__} - {e_archive}"
+                print(f"⚠️ [{run_id}] 경고: {archive_error_msg}")
+                # 아카이빙 실패 시 error_for_saving에 기록 (OCR 성공/실패와 별개로)
+                error_for_saving = archive_error_msg 
+                # 아카이빙 실패가 치명적이지 않다면 status_for_saving을 failure로 바꾸지 않을 수 있음
+                # 여기서는 경고로 남기고 OCR은 진행
+        else:
+            print(f"⚠️ [{run_id}] 경고: run_id가 없어 사용자 이미지 아카이빙을 건너뜁니다.")
+
+
+        # 3. 이미지에서 정보 추출 (사용자의 원본 로직)
+        image_data_output = extract_info_from_image(original_image_path)
+
         if (
             not image_data_output
             or "제품명" not in image_data_output
             or not image_data_output.get("제품명")
         ):
-            error_msg = "이미지에서 유효한 정보를 추출하지 못했습니다."
-            print(f"❌ [{run_id}] {current_step_name} 오류: {error_msg}")
-            if image_data_output:
+            ocr_error_msg = "이미지에서 유효한 정보를 추출하지 못했습니다."
+            # state['current_step'] 대신 current_step_name 사용
+            print(f"❌ [{run_id}] {current_step_name} 오류: {ocr_error_msg}")
+            if image_data_output: # 부분적인 결과라도 있으면 출력
                 print(json.dumps(image_data_output, indent=2, ensure_ascii=False))
-            node_return_output = {
-                "image_data": image_data_output,
-                "error_message": error_msg,
-                "current_step": current_step_name,
-            }
+            
             status_for_saving = "failure"
-            error_for_saving = error_msg
+            # 기존 오류(아카이빙 경고 등)에 OCR 오류 메시지 추가
+            if error_for_saving: error_for_saving += f"; {ocr_error_msg}"
+            else: error_for_saving = ocr_error_msg
+            
+            node_return_output = {
+                "image_data": image_data_output, # 부분 결과 또는 None
+                "product_name_from_image": None,
+                # archived_image_path는 아래에서 공통으로 추가
+            }
         else:
             product_name = image_data_output.get("제품명", "").split("/")[0].strip()
             if not product_name:
-                error_msg = "추출된 제품명이 유효하지 않습니다."
-                print(f"❌ [{run_id}] {current_step_name} 오류: {error_msg}")
+                pn_error_msg = "추출된 제품명이 유효하지 않습니다."
+                # state['current_step'] 대신 current_step_name 사용
+                print(f"❌ [{run_id}] {current_step_name} 오류: {pn_error_msg}")
+                status_for_saving = "failure"
+                if error_for_saving: error_for_saving += f"; {pn_error_msg}"
+                else: error_for_saving = pn_error_msg
+
                 node_return_output = {
                     "image_data": image_data_output,
-                    "error_message": error_msg,
-                    "current_step": current_step_name,
+                    "product_name_from_image": None,
+                    # archived_image_path는 아래에서 공통으로 추가
                 }
-                status_for_saving = "failure"
-                error_for_saving = error_msg
             else:
+                # state['current_step'] 대신 current_step_name 사용
                 print(f"✅ [{run_id}] {current_step_name} 성공. 제품명: {product_name}")
+                # 성공 시 error_for_saving은 아카이빙 경고만 남거나 None이어야 함
+                if status_for_saving == "success" and error_for_saving: # 아카이빙 경고가 있었으나 OCR은 성공
+                    status_for_saving = "success_with_warnings"
+                
                 node_return_output = {
                     "image_data": image_data_output,
                     "product_name_from_image": product_name,
-                    "error_message": None,  # 성공 시 에러 메시지는 None
-                    "current_step": current_step_name,
+                    # archived_image_path는 아래에서 공통으로 추가
                 }
+    
+    except FileNotFoundError as e_fnf:
+        # 이 예외는 os.path.exists(original_image_path) 실패 시 발생
+        print(f"❌ [{run_id}] {current_step_name} 오류: {e_fnf}")
+        status_for_saving = "failure"
+        error_for_saving = str(e_fnf)
+        node_return_output = {
+            "image_data": None,
+            "product_name_from_image": None,
+        }
+    except Exception as e_main:
+        # 그 외 예상치 못한 오류
+        print(f"❌ [{run_id}] {current_step_name} 예상치 못한 오류: {type(e_main).__name__} - {e_main}")
+        status_for_saving = "failure"
+        error_for_saving = f"예상치 못한 오류: {type(e_main).__name__} - {e_main}"
+        node_return_output = {
+            "image_data": None, # 또는 이전 단계까지의 부분 결과
+            "product_name_from_image": None,
+        }
 
-    # 개선된 save_step_output 호출
+    # 모든 경우에 대해 공통적으로 node_return_output에 필드 추가 및 기본값 설정
+    node_return_output["archived_image_path"] = archived_image_path_for_state
+    node_return_output["error_message"] = error_for_saving # 최종 오류 메시지 반영
+    node_return_output["current_step"] = current_step_name
+
+    # 최종적으로 한번만 호출
     save_step_output(
         run_id=run_id,
         step_name=current_step_name,
         step_inputs=step_inputs_for_saving,
-        step_outputs=node_return_output,  # 노드가 반환하는 전체 내용을 저장
+        step_outputs=node_return_output, # 이 딕셔너리가 GraphState를 업데이트
         status=status_for_saving,
-        error_message=error_for_saving,
+        error_message=error_for_saving # save_step_output에도 최종 오류 메시지 전달
     )
 
-    # LangGraph 상태 업데이트를 위해 반환 (error_message와 current_step 포함)
     return node_return_output
-
 
 def node_enrich_product_info(state: GraphState) -> Dict[str, Any]:
     run_id = state.get("run_id")

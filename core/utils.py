@@ -86,6 +86,7 @@ def save_run_metadata(
             "image_path": initial_state.get("image_path"),
             "user_query": initial_state.get("user_query"),
         },
+        "archived_input_image_path": final_state.get("archived_image_path"), # 추가된 필드
         "final_main_output": final_state.get("final_response") if overall_status == "success" else None,
         "final_error_message": final_state.get("error_message"),
         "last_step_executed": final_state.get("current_step"),
