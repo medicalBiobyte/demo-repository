@@ -101,6 +101,27 @@ STEP_OUTPUTS/              ← langgraph_pipeline, streamlit 동작시 데이터
 
 ---
 
+## 📊 데모 화면
+
+아래 이미지는 실제 데모 화면을 보여줍니다. 사용자가 업로드한 건강기능식품 광고 이미지를 분석하여 제품의 성분과 효능을 검증하는 과정을 시각적으로 확인할 수 있습니다.
+
+1. csv 검색 성공
+
+<img src="streamlit/demo_img/csv%20검색%20성공.JPG" width="200">
+
+2. rag 검색 성공
+
+<img src="streamlit/demo_img/rag 검색 까지.JPG" width="200">
+
+3. 효능 없음
+
+<img src="streamlit/demo_img/효능없음_1.JPG" width="200">
+<img src="streamlit/demo_img/효능없음_2.JPG" width="200">
+
+
+
+---
+
 ## 👥 팀 정보 및 문의
 
 | 이름 | GitHub |
@@ -110,3 +131,4 @@ STEP_OUTPUTS/              ← langgraph_pipeline, streamlit 동작시 데이터
 | 김솔 | [@kimsol1134](https://github.com/kimsol1134) |
 
 📮 기여 및 문의는 자유롭게 [Issues](https://github.com/medicalBiobyte/demo-repository/issues) 등록해 주세요!
+
