@@ -107,16 +107,16 @@ STEP_OUTPUTS/              ← langgraph_pipeline, streamlit 동작시 데이터
 
 1. csv 검색 성공
 
-<img src="streamlit/demo_img/csv%20검색%20성공.JPG" width="200">
+<img src="streamlit/demo_img/csv_search_success.JPG" width="400">
 
 2. rag 검색 성공
 
-<img src="streamlit/demo_img/rag 검색 까지.JPG" width="200">
+<img src="streamlit/demo_img/rag_search_success.JPG" width="400">
 
 3. 효능 없음
 
-<img src="streamlit/demo_img/효능없음_1.JPG" width="200">
-<img src="streamlit/demo_img/효능없음_2.JPG" width="200">
+<img src="streamlit/demo_img/NotEffect_1.JPG" width="400">
+<img src="streamlit/demo_img/NotEffect_2.JPG" width="400">
 
 
 
