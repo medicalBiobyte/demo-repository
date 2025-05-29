@@ -30,6 +30,11 @@ build/
 *.swp
 *.swo
 chroma_db/
+chroma_db/
+chroma_db_child/
+chroma_db_parent/
+
+
 *.sqlite3
 chroma.sqlite3
 *.save

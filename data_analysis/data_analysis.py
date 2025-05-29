@@ -27,6 +27,13 @@ else:  # Mac 또는 Linux 환경
 
 plt.rcParams["axes.unicode_minus"] = False  # 마이너스 폰트 깨짐 방지
 
+# --- 이미지를 저장할 디렉토리 생성 ---
+# 'images' 폴더가 없으면 생성
+output_dir = "analysis_images"
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+    print(f"'{output_dir}' 디렉토리를 생성했습니다.")
+
 # --- 분석 대상 파일 및 컬럼 매핑 ---
 file_configs = [
     (healthfood_claims_path, "기능성 내용", "healthfood_claims"),
@@ -427,9 +434,11 @@ def run_pipeline(df, label):
     plt.tight_layout()
     for i, v in enumerate(df["category"].value_counts()):
         plt.text(i, v + 0.2, str(v), ha="center", va="bottom")
-    plt.show()
+    # 이미지 저장
+    plt.savefig(os.path.join(output_dir, f"{label}_category_counts_bar_chart.png"))
+    plt.close()  # 현재 그래프 닫기
 
-    # 2) 카테고리별 상위 키워드 추출
+    # 2) 카테고리별 상위 키워드 추출 (이 함수는 그래프 생성을 위한 데이터 준비용)
     def get_keyword_results(df_input):
         df_use = df_input[df_input["category"] != "기타"].copy()
         result = {}
@@ -469,7 +478,10 @@ def run_pipeline(df, label):
     plt.title("워드클라우드", fontsize=16, fontweight="bold")
     plt.axis("off")
     plt.tight_layout()
-    plt.show()
+    # 이미지 저장
+    plt.savefig(os.path.join(output_dir, f"{label}_wordcloud.png"))
+    plt.close()  # 현재 그래프 닫기
+
     print(f"\n### {label} 데이터 처리 완료 ###\n")
     return df
 
@@ -524,14 +536,14 @@ if __name__ == "__main__":
         df_processed = run_pipeline(df, label)
         # unclassified_items 저장 로직 (필요시 주석 해제하여 사용)
         # if label != 'healthfood_claims': # 기타 키워드 찾는용
-        #     unclassified_items = df_processed[df_processed['category'] == '기타']['기능성 내용']
-        #     if not unclassified_items.empty:
-        #         output_filename = f"unclassified_{label}_items.txt"
-        #         try:
-        #             unclassified_items.to_csv(output_filename, index=False, header=False, encoding='utf-8')
-        #             print(f"\n'{label}' 데이터의 '기타' 항목 ({len(unclassified_items)}개)이 '{output_filename}' 파일로 저장되었습니다.")
-        #             print(f"'{output_filename}' 파일을 열어 내용을 확인하고 키워드 사전을 업데이트해 보세요!")
-        #         except Exception as e:
-        #             print(f"파일 저장 중 오류 발생: {e}")
-        #     else:
-        #         print(f"\n'{label}' 데이터에 '기타' 항목이 없습니다.")
+        #    unclassified_items = df_processed[df_processed['category'] == '기타']['기능성 내용']
+        #    if not unclassified_items.empty:
+        #        output_filename = f"unclassified_{label}_items.txt"
+        #        try:
+        #            unclassified_items.to_csv(output_filename, index=False, header=False, encoding='utf-8')
+        #            print(f"\n'{label}' 데이터의 '기타' 항목 ({len(unclassified_items)}개)이 '{output_filename}' 파일로 저장되었습니다.")
+        #            print(f"'{output_filename}' 파일을 열어 내용을 확인하고 키워드 사전을 업데이트해 보세요!")
+        #        except Exception as e:
+        #            print(f"파일 저장 중 오류 발생: {e}")
+        #    else:
+        #        print(f"\n'{label}' 데이터에 '기타' 항목이 없습니다.")
