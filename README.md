@@ -5,6 +5,24 @@
 
 ---
 
+python 버전 : Python 3.11.9
+## 실행방법
+.env 안의 api-key 채우기.
+TAVILY_API_KEY, COHERE_API_KEY, GOOGLE_API_KEY
+
+python -m venv .venv 
+.venv\Scripts\activate
+pip install -r requirements.txt
+
+python core\cromadb_indexing_0.py
+python langgraph_pipeline.py
+---
+## demo 실행
+streamlit run streamlit\streamlit_app.py
+
+
+---
+
 ## 🔧 구성 파일 및 설명
 
 ### 1. `cromadb_indexing_0.py`  
