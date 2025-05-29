@@ -1,147 +1,112 @@
-# 💊 Health Product Claim Verification System
+# 💊 헬스 애드 스캐너 - 건강기능식품 광고 신뢰도 검증 시스템
 
-이 프로젝트는 건강기능식품 또는 의약외품 광고에서 주장하는 효능이 실제로 성분 기반 공공 데이터와 일치하는지 검증하는 시스템입니다.<br/>
-이미지 인식부터 웹 검색, 벡터 검색, LLM 기반 판단까지 전체 파이프라인을 구성합니다.
+**식의약 공공데이터**와 실제 **광고 이미지/텍스트**를 바탕으로  
+광고에서 주장하는 건강기능식품의 효능이 **사실에 부합하는지 검증**하는 AI 파이프라인 프로젝트입니다.
+
+🧠 LLM 기반 구조로, 이미지 인식 → 웹 검색 → 성분 분석 → 공공 DB 대조 → 자연어 응답까지 자동화된 검증을 수행합니다.
 
 ---
 
-python 버전 : Python 3.11.9
-## 실행방법
-.env 안의 api-key 채우기.
-TAVILY_API_KEY, COHERE_API_KEY, GOOGLE_API_KEY
+## ⚙️ 주요 실행 파일
 
-python -m venv .venv 
+| 파일명 | 설명 |
+|--------|------|
+| `langgraph_pipeline.py` | ✅ 전체 분석 흐름을 통합한 **메인 파이프라인 실행 파일**입니다. |
+| `core/` 폴더 | 각 단계를 구성하는 **모듈**들이 위치합니다. |
+
+---
+
+## 🧪 사용 기술
+- Python 3.11.9
+- LangGraph, LangChain, ChromaDB
+- OpenAI GPT-4o, Gemini (Vision), Tavily Search
+- Streamlit (Demo용 UI)
+
+---
+
+## 🚀 실행 방법
+
+```bash
+# 1. 가상환경 구성
+python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 
-python core\cromadb_indexing_0.py
-python langgraph_pipeline.py
----
-## demo 실행
-streamlit run streamlit\streamlit_app.py
+# 2. 환경 변수 설정 (.env 파일에 API 키 입력)
+OPENAI_API_KEY=
+TAVILY_API_KEY=
+GOOGLE_API_KEY=
+...
 
+# 3. 데이터 임베딩 및 전체 파이프라인 실행
+python core/cromadb_indexing_0.py      # 벡터 DB 생성
+python langgraph_pipeline.py           # 전체 분석 파이프라인 실행
 
----
-
-## 🔧 구성 파일 및 설명
-
-### 1. `cromadb_indexing_0.py`  
-기능성 원료와 의약품 데이터를 벡터 임베딩하여 Chroma 벡터스토어에 저장합니다. <br/>
-기능성이 있다고 제시된 원료명과 공공데이터를 기반으로 검증된 의약 원료가 추후에 비교될 수 있는 기반을 마련합니다.
-- 입력 데이터: `csv_data/fnclty_materials_complete.csv`, `drug_raw.csv`
-- 출력 위치: `./chroma_db/`
-- 사용 모델: `text-embedding-3-small`
-
----
-
-### 2. `text_extract_1.py`  
-제품 광고 이미지에서 텍스트를 추출하고, 제품명과 효능 주장을 LLM을 통해 구조화합니다. <br/>
-모델을 통하여 자연어를 인식하고 데이터 파일에 저장할 수 있는 구조를 갖추고 있습니다.
-- 입력 이미지 디렉토리: `img/`
-- 출력 JSON: `IMG2TEXT_data/result_all.json`
-- 사용 모델: `Gemini (image_llm)`
-- 프롬프트: `IMG2TEXT_PROMPT`
-
----
-
-### 3. `web_search_2.py`  
-제품명을 기반으로 웹 검색을 실행하고, 검색 결과에서 성분 및 효능 정보를 정리합니다. <br/>
-이를 통해 기존의 DB에서 판단하기 어려운 정보를 추가적으로 검색하여 검증력을 높입니다.
-- 입력: `IMG2TEXT_data/result_all.json`
-- 출력: `TEXT2SEARCH_data/enriched_{제품명}.json`
-- 사용 모델: `Tavily (검색) + GPT (정리)`
-- 프롬프트: `WEB2INGREDIENT_PROMPT`
-
----
-
-### 4. `claim_check_3.py`  
-사용자의 질문과 제품의 성분 정보를 비교하여, 효능 주장이 일치하는지 판단합니다. 
-- 입력: `TEXT2SEARCH_data/enriched_*.json`, 사용자 질문
-- 출력: `DECISION_data/enriched_{제품명}.json`
-- 사용 모델: GPT
-- 프롬프트: `QUERY2KEYWORD_PROMPT`
-
----
-
-### 5. `answer_user_4.py`  
-최종 판단 결과 JSON을 사람이 읽기 쉬운 자연어 설명으로 변환합니다. <br/>
-로컬 기반, 웹 기반 출력에 따라서 출력 방식을 조절할 수 있습니다.
-- 입력: `DECISION_data/`
-- 출력: 콘솔에 텍스트 출력 또는 API 응답용 사용 가능
-
----
-
-### 6. `prompt.py`  
-LLM에 전달할 프롬프트 템플릿을 모아둔 파일입니다. <br/>
-프롬프트 엔지니어링 과정을 거쳐 프로세스에서 사용될 수있는 자연어를 처리하였습니다.
-- `IMG2TEXT_PROMPT`: 이미지에서 제품명/효능 주장 추출
-- `WEB2INGREDIENT_PROMPT`: 웹 검색 결과에서 성분 추출
-- `QUERY2KEYWORD_PROMPT`: 질문에서 핵심 효능 키워드 추출
-
----
-
-### 7. `config.py`  
-전체 시스템에서 사용하는 API 키, LLM 설정, 검색 클라이언트 등을 구성합니다.
-- 사용 LLM: `gpt-4o-mini`, `Gemini`, `Tavily`
-- 벡터스토어: Chroma + OpenAI Embedding
-
----
-
-## 🔄 전체 파이프라인 흐름
-
-1. **이미지 입력**
-   → `text_extract_1.py`: 제품명 및 광고 문구 추출  
-2. **웹 검색**
-   → `web_search_2.py`: 성분 정보 및 효능 수집  
-3. **사용자 질문과 비교**
-   → `claim_check_3.py`: 공공 DB와 비교하여 주장 검증  
-4. **자연어 응답**
-   → `answer_user_4.py`: 사람 친화적인 설명 출력
-
----
-
-## ✅ 예시 실행 순서
-
-```bash
-python cromadb_indexing_0.py      # 벡터 DB 구성
-python text_extract_1.py          # 이미지 정보 추출
-python web_search_2.py            # 성분 웹 검색
-python claim_check_3.py           # 질문 기반 검증
-python answer_user_4.py           # 자연어 응답 출력
+# (선택) Streamlit 데모 실행
+streamlit run streamlit/streamlit_app.py
 ```
 
 ---
 
-## 📂 디렉토리 구조
+## 🧩 주요 모듈 설명 (core/)
+
+| 모듈 | 설명 |
+|------|------|
+| `cromadb_indexing_0.py` | 공공 데이터를 Chroma 벡터스토어에 저장 (임베딩 수행) |
+| `text_extract_1.py` | 광고 이미지에서 텍스트 추출 → 제품명/효능 추출 (LLM 사용) |
+| `intent_refiner_agent_2.py` | 모호한 사용자 질문 정리 및 증강 |
+| `web_search_3.py` | 제품명을 바탕으로 웹 검색 및 성분/효능 정보 증강 |
+| `claim_check_4.py` | 추출된 성분과 질문을 대조 → 주장 신뢰도 판단 |
+| `rag_service_4_1.py` | RAG |
+| `answer_user_5.py` | 결과를 자연어 응답으로 포맷팅 |
+| `prompt.py` | 위 모든 과정에서 사용하는 LLM 프롬프트 저장소 |
+| `config.py` | llm, vectorDB cofing |
+
+---
+
+## 🔄 전체 분석 흐름
+
+```
+이미지 업로드
+   ↓
+텍스트 인식 (제품명 + 효능 주장 추출)
+   ↓
+웹 검색 통한 성분 정보 수집
+   ↓
+공공데이터 기반 성분-질문 대조
+   ↓
+최종 신뢰도 평가 및 자연어 설명 출력
+```
+
+> 이 전체 과정을 `langgraph_pipeline.py` 한 번의 실행으로 자동 수행합니다.
+
+---
+
+## 🗂️ 주요 디렉토리 구조
 
 ```
 csv_data/
-    fnclty_materials_complete.csv
-    drug_raw.csv
+    ├── fnclty_materials_complete.csv
+    ├── drug_raw.csv
+    └── healthfood_claims_final10.csv
 
-img/
-    광고 이미지들
-
-IMG2TEXT_data/
-    result_all.json
-
-TEXT2SEARCH_data/
-    enriched_{제품명}.json
-
-DECISION_data/
-    enriched_{제품명}.json
-
-chroma_db/
-    벡터 임베딩 데이터
+img/                        ← 입력 이미지
+IMG2TEXT_data/             ← OCR 및 추출된 제품명/효능
+TEXT2SEARCH_data/          ← 웹 검색 기반 정보
+DECISION_data/             ← 최종 판단 결과
+chroma_db/                 ← 벡터스토어 저장소
+streamlit/                 ← 데모용 웹 UI
+STEP_OUTPUTS/              ← langgraph_pipeline, streamlit 동작시 데이터 수집
 ```
 
 ---
 
-## 💬 문의 및 기여
+## 👥 팀 정보 및 문의
 
-- 작성자:
-[최영환](https://github.com/cyh5757),
-[김경서](https://github.com/kkyungseo),
-[김솔](https://github.com/kimsol1134)  
-- 사용 기술: Python, LangChain, Chroma, GPT-4o, Gemini, Tavily 등
-- 기여 및 문의: 해당 Repository의 자유로운 Issue 작성 가능
+| 이름 | GitHub |
+|------|--------|
+| 최영환 | [@cyh5757](https://github.com/cyh5757) |
+| 김경서 | [@kkyungseo](https://github.com/kkyungseo) |
+| 김솔 | [@kimsol1134](https://github.com/kimsol1134) |
+
+📮 기여 및 문의는 자유롭게 [Issues](https://github.com/medicalBiobyte/demo-repository/issues) 등록해 주세요!
